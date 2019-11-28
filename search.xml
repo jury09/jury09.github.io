@@ -1,6 +1,144 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
+    <title>java线程池该如何创建</title>
+    <url>/2019/11/28/java%E7%BA%BF%E7%A8%8B%E6%B1%A0%E8%AF%A5%E5%A6%82%E4%BD%95%E5%88%9B%E5%BB%BA/</url>
+    <content><![CDATA[<blockquote>
+<p>看阿里巴巴开发手册并发编程这块有一条：线程池不允许使用Executors去创建，而是通过ThreadPoolExecutor的方式，通过源码分析禁用的原因。</p>
+</blockquote>
+<p>通过这篇文章可以了解到以下几点：</p>
+<blockquote>
+<ul>
+<li>线程池的定义</li>
+<li>Executors创建线程池的几种方式</li>
+<li>ThreadPoolExecutor对象</li>
+<li>线程池执行任务逻辑和线程池参数的关系</li>
+<li>Executors创建返回ThreadPoolExecutor对象</li>
+<li>OOM异常测试</li>
+<li>如何定义线程池参数</li>
+</ul>
+</blockquote>
+<h4 id="线程池的定义"><a href="#线程池的定义" class="headerlink" title="线程池的定义"></a>线程池的定义</h4><p>管理一组工作线程，通过线程池复用线程有以下几点优点：</p>
+<blockquote>
+<ul>
+<li>减少资源创建 =&gt; 减少内存开销，创建线程占用内存</li>
+<li>降低系统开销 =&gt; 创建线程需要时间，会延迟处理的请求</li>
+<li>提高稳定稳定性 =&gt; 避免无限创建线程引起的OutOfMemoryError【简称OOM】</li>
+</ul>
+</blockquote>
+<h4 id="Executors创建线程池的几种方式"><a href="#Executors创建线程池的几种方式" class="headerlink" title="Executors创建线程池的几种方式"></a>Executors创建线程池的几种方式</h4><p>根据返回的对象类型创建线程池可以分为三类：</p>
+<blockquote>
+<ul>
+<li>创建返回ThreadPoolExecutor对象</li>
+<li>创建返回ScheduleThreadPoolExecutor对象</li>
+<li>创建返回ForkJoinPool对象</li>
+</ul>
+</blockquote>
+<p>本文只讨论创建返回ThreadPoolExecutor对象</p>
+<h4 id="ThreadPoolExecutor对象"><a href="#ThreadPoolExecutor对象" class="headerlink" title="ThreadPoolExecutor对象"></a>ThreadPoolExecutor对象</h4><p>在介绍Executors创建线程池方法前先介绍一下ThreadPoolExecutor，因为这些创建线程池的静态方法都是返回ThreadPoolExecutor对象，和我们手动创建ThreadPoolExecutor对象的区别就是我们不需要自己传构造函数的参数。</p>
+<p>ThreadPoolExecutor的构造函数共有四个，但最终调用的都是同一个：</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">public ThreadPoolExecutor(int corePoolSize,</span><br><span class="line">                          int maximumPoolSize,</span><br><span class="line">                          long keepAliveTime,</span><br><span class="line">                          TimeUnit unit,</span><br><span class="line">                          BlockingQueue&lt;Runnable&gt; workQueue,</span><br><span class="line">                          ThreadFactory threadFactory,</span><br><span class="line">                          RejectedExecutionHandler handler)</span><br></pre></td></tr></table></figure>
+<p>构造函数参数说明：</p>
+<blockquote>
+<ul>
+<li>corePoolSize =&gt; 线程池核心线程数量</li>
+<li>maximumPoolSize =&gt; 线程池最大数量</li>
+<li>keepAliveTime =&gt; 空闲线程存活时间</li>
+<li>unit =&gt; 时间单位</li>
+<li>workQueue =&gt; 线程池所使用的缓冲队列</li>
+<li>threadFactory =&gt; 线程池创建线程使用的工厂</li>
+<li>handler =&gt; 线程池对拒绝任务的处理策略</li>
+</ul>
+</blockquote>
+<h4 id="线程池执行任务逻辑和线程池参数的关系"><a href="#线程池执行任务逻辑和线程池参数的关系" class="headerlink" title="线程池执行任务逻辑和线程池参数的关系"></a>线程池执行任务逻辑和线程池参数的关系</h4><p>执行逻辑说明：</p>
+<blockquote>
+<ul>
+<li>判断核心线程数是否已满，核心线程数大小和corePoolSize参数有关，未满则创建核心线程执行任务</li>
+<li>若核心线程池已满，判断队列是否满，队列是否满和workQueue参数有关，若未满则加入队列中</li>
+<li>若队列已满，判断非核心线程池是否已满，非核心线程池是否已满和maximumPoolSize参数有关，若未满创建非核心线程执行任务</li>
+<li>若线程池已满，则采用拒绝策略处理无法执执行的任务，拒绝策略和handler参数有关</li>
+</ul>
+</blockquote>
+<h4 id="Executors创建返回ThreadPoolExecutor对象"><a href="#Executors创建返回ThreadPoolExecutor对象" class="headerlink" title="Executors创建返回ThreadPoolExecutor对象"></a>Executors创建返回ThreadPoolExecutor对象</h4><p>Executors创建返回ThreadPoolExecutor对象的方法共有三种：</p>
+<blockquote>
+<ul>
+<li>Executors#newCachedThreadPool =&gt; 创建可缓存的线程池</li>
+<li>Executors#newSingleThreadExecutor =&gt; 创建单线程的线程池</li>
+<li>Executors#newFixedThreadPool =&gt; 创建固定长度的线程池</li>
+</ul>
+</blockquote>
+<h5 id="Executors-newCachedThreadPool方法"><a href="#Executors-newCachedThreadPool方法" class="headerlink" title="Executors#newCachedThreadPool方法"></a>Executors#newCachedThreadPool方法</h5><figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">public static ExecutorService newCachedThreadPool() &#123;</span><br><span class="line">    return new ThreadPoolExecutor(0, Integer.MAX_VALUE,</span><br><span class="line">                                  60L, TimeUnit.SECONDS,</span><br><span class="line">                                  new SynchronousQueue&lt;Runnable&gt;());</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>CachedThreadPool是一个根据需要创建新线程的线程池，参数如下：</p>
+<blockquote>
+<ul>
+<li>corePoolSize =&gt; 0，核心线程池的数量为0</li>
+<li>maximumPoolSize =&gt; Integer.MAX_VALUE，可以认为最大线程数是无限的</li>
+<li>keepAliveTime =&gt; 60L</li>
+<li>unit =&gt; 秒</li>
+<li>workQueue =&gt; SynchronousQueue</li>
+</ul>
+</blockquote>
+<p>当一个任务提交时，corePoolSize为0不创建核心线程，SynchronousQueue是一个不存储元素的队列，可以理解为队里永远是满的，因此最终会创建非核心线程来执行任务。</p>
+<p>对于非核心线程空闲60s时将被回收。因为Integer.MAX_VALUE非常大，可以认为是可以无限创建线程的，在资源有限的情况下容易引起OOM异常。</p>
+<h5 id="Executors-newSingleThreadExecutor方法"><a href="#Executors-newSingleThreadExecutor方法" class="headerlink" title="Executors#newSingleThreadExecutor方法"></a>Executors#newSingleThreadExecutor方法</h5><figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">public static ExecutorService newSingleThreadExecutor() &#123;</span><br><span class="line">    return new FinalizableDelegatedExecutorService</span><br><span class="line">        (new ThreadPoolExecutor(1, 1,</span><br><span class="line">                                0L, TimeUnit.MILLISECONDS,</span><br><span class="line">                                new LinkedBlockingQueue&lt;Runnable&gt;()));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>SingleThreadExecutor是单线程线程池，只有一个核心线程，参数如下：</p>
+<blockquote>
+<ul>
+<li>corePoolSize =&gt; 1，核心线程池的数量为1</li>
+<li>maximumPoolSize =&gt; 1，只可以创建一个非核心线程</li>
+<li>keepAliveTime =&gt; 0L</li>
+<li>unit =&gt; 秒</li>
+<li>workQueue =&gt; LinkedBlockingQueue</li>
+</ul>
+</blockquote>
+<p>当一个任务提交时，首先会创建一个核心线程来执行任务，如果超过核心线程的数量，将会放入队列中，因为LinkedBlockingQueue是长度为Integer.MAX_VALUE的队列，可以认为是无界队列，因此往队列中可以插入无限多的任务，在资源有限的时候容易引起OOM异常，同时因为无界队列，maximumPoolSize和keepAliveTime参数将无效，压根就不会创建非核心线程。</p>
+<h5 id="Executors-newFixedThreadPool方法"><a href="#Executors-newFixedThreadPool方法" class="headerlink" title="Executors#newFixedThreadPool方法"></a>Executors#newFixedThreadPool方法</h5><figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">public static ExecutorService newFixedThreadPool(int nThreads) &#123;</span><br><span class="line">    return new ThreadPoolExecutor(nThreads, nThreads,</span><br><span class="line">                                  0L, TimeUnit.MILLISECONDS,</span><br><span class="line">                                  new LinkedBlockingQueue&lt;Runnable&gt;());</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>FixedThreadPool是固定核心线程的线程池，固定核心线程数由用户传入，参数如下：</p>
+<blockquote>
+<ul>
+<li>corePoolSize =&gt; 1，核心线程池的数量为1</li>
+<li>maximumPoolSize =&gt; 1，只可以创建一个非核心线程</li>
+<li>keepAliveTime =&gt; 0L</li>
+<li>unit =&gt; 秒</li>
+<li>workQueue =&gt; LinkedBlockingQueue</li>
+</ul>
+</blockquote>
+<p>它和SingleThreadExecutor类似，唯一的区别就是核心线程数不同，并且由于使用的是LinkedBlockingQueue，在资源有限的时候容易引起OOM异常。</p>
+<h4 id="总结："><a href="#总结：" class="headerlink" title="总结："></a>总结：</h4><blockquote>
+<ul>
+<li>FixedThreadPool和SingleThreadExecutor =&gt; 允许的请求队列长度为Integer.MAX_VALUE，可能会堆积大量的请求，从而引起OOM异常</li>
+<li>CachedThreadPool =&gt; 允许创建的线程数为Integer.MAX_VALUE，可能会创建大量的线程，从而引起OOM异常</li>
+</ul>
+</blockquote>
+<p>这就是为什么禁止使用Executors去创建线程池，而是推荐自己去创建ThreadPoolExecutor的原因。</p>
+<h4 id="OOM异常测试"><a href="#OOM异常测试" class="headerlink" title="OOM异常测试"></a>OOM异常测试</h4><p>理论上会出现OOM异常，必须测试一波验证之前的说法：</p>
+<p>测试类：TaskTest.java</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">public class TaskTest &#123;</span><br><span class="line">    public static void main(String[] args) &#123;</span><br><span class="line">        ExecutorService es = Executors.newCachedThreadPool();</span><br><span class="line">        int i = 0;</span><br><span class="line">        while (true) &#123;</span><br><span class="line">            es.submit(new Task(i++));</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>使用Executors创建的CachedThreadPool，往线程池中无限添加线程</p>
+<p>在启动测试类之前先将JVM内存调整小一点，不然很容易将电脑跑出问题，在idea里：Run -&gt; Edit Configurations</p>
+<p>JVM参数说明：</p>
+<blockquote>
+<ul>
+<li>-Xms10M =&gt; Java Heap内存初始化值</li>
+<li>-Xmx10M =&gt; Java Heap内存最大值</li>
+</ul>
+</blockquote>
+<h4 id="如何定义线程池参数"><a href="#如何定义线程池参数" class="headerlink" title="如何定义线程池参数"></a>如何定义线程池参数</h4><p><strong>CPU密集型</strong> =&gt; 线程池的大小推荐为CPU数量 + 1，CPU数量可以根据Runtime.availableProcessors方法获取</p>
+<p><strong>IO密集型</strong> =&gt; CPU数量 * CPU利用率 * (1 + 线程等待时间/线程CPU时间)</p>
+<p><strong>混合型</strong> =&gt; 将任务分为CPU密集型和IO密集型，然后分别使用不同的线程池去处理，从而使每个线程池可以根据各自的工作负载来调整</p>
+<p><strong>阻塞队列</strong> =&gt; 推荐使用有界队列，有界队列有助于避免资源耗尽的情况发生</p>
+<p><strong>拒绝策略</strong> =&gt; 默认采用的是AbortPolicy拒绝策略，直接在程序中抛出RejectedExecutionException异常【因为是运行时异常，不强制catch】，这种处理方式不够优雅。处理拒绝策略有以下几种比较推荐：</p>
+<ul>
+<li>针对默认的AbortPolicy拒绝策略,在程序中捕获RejectedExecutionException异常，在捕获异常中对任务进行处理。</li>
+<li>使用CallerRunsPolicy拒绝策略，该策略会将任务交给调用execute的线程执行【一般为主线程】，此时主线程将在一段时间内不能提交任何任务，从而使工作线程处理正在执行的任务。此时提交的线程将被保存在TCP队列中，TCP队列满将会影响客户端，这是一种平缓的性能降低。</li>
+<li>自定义拒绝策略，只需要实现RejectedExecutionHandler接口即可。</li>
+<li>如果任务不是特别重要，使用DiscardPolicy和DiscardOldestPolicy拒绝策略将任务丢弃也是可以的。</li>
+</ul>
+<p>如果使用Executors的静态方法创建ThreadPoolExecutor对象，可以通过使用Semaphore对任务的执行进行限流也可以避免出现OOM异常。</p>
+]]></content>
+  </entry>
+  <entry>
     <title>Hello World</title>
     <url>/2019/10/29/hello-world/</url>
     <content><![CDATA[<p>Welcome to <a href="https://hexo.io/" target="_blank" rel="noopener">Hexo</a>! This is your very first post. Check <a href="https://hexo.io/docs/" target="_blank" rel="noopener">documentation</a> for more info. If you get any problems when using Hexo, you can find the answer in <a href="https://hexo.io/docs/troubleshooting.html" target="_blank" rel="noopener">troubleshooting</a> or you can ask me on <a href="https://github.com/hexojs/hexo/issues" target="_blank" rel="noopener">GitHub</a>.</p>
